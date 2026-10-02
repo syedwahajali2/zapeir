@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Your Dream Property</title>
+<style>
+  :root { --navy:#0b2545; --navy-2:#13315c; --accent:#f2b84b; --bg:#f4f6fa; --text:#1c2733; --muted:#5b6b7d; } /* color tokens */
+  * { box-sizing:border-box; margin:0; padding:0; } /* simple reset */
+  html { scroll-behavior:smooth; } /* smooth scroll for the hero button */
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+
+  /* ---------- Hero ---------- */
+  .hero { background:linear-gradient(160deg,var(--navy),var(--navy-2)); color:#fff; text-align:center; padding:96px 20px 140px; }
+  .hero h1 { font-family:Georgia,"Times New Roman",serif; font-size:clamp(2.2rem,6vw,3.8rem); line-height:1.15; margin-bottom:16px; }
+  .hero p { max-width:520px; margin:0 auto 32px; color:#cdd8e8; font-size:1.1rem; }
+  .btn { display:inline-block; background:var(--accent); color:var(--navy); border:none; border-radius:999px; padding:14px 32px; font-size:1rem; font-weight:700; cursor:pointer; text-decoration:none; transition:transform .15s; }
+  .btn:hover { transform:translateY(-2px); }
+  .btn:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+
+  /* ---------- Form card ---------- */
+  .form-wrap { padding:0 16px 64px; }
+  .card { max-width:560px; margin:-80px auto 0; background:#fff; border-radius:20px; padding:32px 28px; box-shadow:0 12px 40px rgba(11,37,69,.15); } /* overlaps hero */
+  .card h2 { color:var(--navy); font-family:Georgia,serif; margin-bottom:6px; }
+  .card .sub { color:var(--muted); margin-bottom:24px; font-size:.95rem; }
+  label { display:block; font-weight:600; font-size:.9rem; margin:16px 0 6px; color:var(--navy); }
+  .opt { font-weight:400; color:var(--muted); } /* "(optional)" tag */
+  input, select, textarea { width:100%; padding:12px 14px; font:inherit; color:var(--text); background:#fff; border:1.5px solid #d5dce6; border-radius:12px; }
+  input:focus, select:focus, textarea:focus { outline:3px solid rgba(242,184,75,.45); border-color:var(--accent); } /* visible focus */
+  textarea { min-height:110px; resize:vertical; }
+  .card .btn { width:100%; margin-top:24px; border-radius:12px; }
+
+  /* ---------- Status message ---------- */
+  #msg { display:none; margin-top:16px; padding:12px 14px; border-radius:12px; font-weight:600; font-size:.95rem; }
+  #msg.ok  { display:block; background:#e6f6ec; color:#14692f; } /* green success */
+  #msg.err { display:block; background:#fdecec; color:#a12626; } /* red error */
+
+  /* ---------- Footer ---------- */
+  footer { background:var(--navy); color:#9fb0c8; text-align:center; padding:24px 16px; font-size:.9rem; }
+</style>
+</head>
+<body>
+
+<!-- Hero section -->
+<header class="hero">
+  <h1>Find Your Dream Property</h1>
+  <p>Tell us what you are looking for and a property advisor will get back to you with options that match your budget.</p>
+  <a href="#inquiry" class="btn">Send Inquiry</a>
+</header>
+
+<!-- Inquiry form -->
+<main class="form-wrap" id="inquiry">
+  <div class="card">
+    <h2>Send an inquiry</h2>
+    <p class="sub">Takes about a minute. We reply within one working day.</p>
+
+    <form id="inquiryForm" novalidate>
+      <label for="full_name">Full Name</label>
+      <input type="text" id="full_name" name="full_name" required autocomplete="name">
+
+      <label for="phone">Phone Number</label>
+      <input type="tel" id="phone" name="phone" required autocomplete="tel" placeholder="e.g. 0300 1234567">
+
+      <label for="email">Email <span class="opt">(optional)</span></label>
+      <input type="email" id="email" name="email" autocomplete="email">
+
+      <label for="budget">Budget</label>
+      <select id="budget" name="budget" required>
+        <option value="" disabled selected>Select your budget</option>
+        <option>Under 50 Lakh</option>
+        <option>50 Lakh-1 Crore</option>
+        <option>1-3 Crore</option>
+        <option>3 Crore+</option>
+      </select>
+
+      <label for="timeline">Timeline</label>
+      <select id="timeline" name="timeline" required>
+        <option value="" disabled selected>When do you want to buy?</option>
+        <option>Immediately</option>
+        <option>1-3 months</option>
+        <option>3-6 months</option>
+        <option>Just exploring</option>
+      </select>
+
+      <label for="message">Message</label>
+      <textarea id="message" name="message" required placeholder="Area, property type, bedrooms, anything else we should know"></textarea>
+
+      <button type="submit" class="btn" id="submitBtn">Send Inquiry</button>
+      <div id="msg" role="status"></div>
+    </form>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer>&copy; <span id="year"></span> Your Real Estate Company. All rights reserved.</footer>
+
+<script>
+  const WEBHOOK_URL = "YOUR_ZAPIER_WEBHOOK_URL"; // <-- paste your Zapier Catch Hook URL here
+
+  const form = document.getElementById("inquiryForm"); // the form element
+  const btn  = document.getElementById("submitBtn");   // the submit button
+  const msg  = document.getElementById("msg");         // the status message box
+  document.getElementById("year").textContent = new Date().getFullYear(); // footer year
+
+  // helper: show a message in green ("ok") or red ("err")
+  function showMsg(text, type) {
+    msg.textContent = text;   // set the text
+    msg.className = type;     // set the colour class
+  }
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault(); // stop the normal page reload
+    showMsg("", "");    // clear any old message
+
+    // 1. collect all fields and turn them into a plain object
+    const data = Object.fromEntries(new FormData(form));
+
+    // 2. basic validation: phone needs at least 10 digits
+    const digits = data.phone.replace(/\D/g, ""); // keep digits only
+    if (digits.length < 10) {
+      showMsg("Please enter a phone number with at least 10 digits.", "err");
+      return; // stop here, nothing is sent
+    }
+
+    // 3. add a timestamp
+    data.submitted_at = new Date().toISOString();
+
+    // 4. lock the button while sending
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+
+    try {
+      // 5. send form-encoded data to Zapier (no-cors means we cannot read the reply)
+      await fetch(WEBHOOK_URL, {
+        method: "POST",
+        mode: "no-cors",
+        body: new URLSearchParams(data) // form-encoded: Zapier parses each field separately
+      });
+      showMsg("Thank you! Your inquiry was sent. We will contact you soon.", "ok"); // green message
+      form.reset(); // clear the form
+    } catch (err) {
+      console.error(err); // helpful for debugging
+      showMsg("Something went wrong. Please check your connection and try again.", "err"); // red message
+    } finally {
+      btn.disabled = false;            // unlock the button
+      btn.textContent = "Send Inquiry"; // restore the label
+    }
+  });
+</script>
+</body>
+</html>
